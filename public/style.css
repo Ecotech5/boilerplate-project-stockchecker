@@ -1,22 +1,13 @@
-#userstories {
+/* Layout Sections */
+#userstories,
+#testui {
   margin-left: 5%;
   margin-top: 5%;
 }
 
+/* Utility Spacing */
 .p-50 {
   margin: 50px;
-}
-
-#testui {
-  margin-left: 5%;
-}
-
-.text-align-left {
-  text-align: left;
-}
-
-input[type='text'] {
-  width: 100px;
 }
 
 .m-50 {
@@ -25,4 +16,42 @@ input[type='text'] {
 
 .mt-200 {
   margin-top: 200px;
+}
+
+/* Text Styling */
+.text-align-left {
+  text-align: left;
+}
+
+/* Form Inputs */
+input[type="text"] {
+  width: 120px;
+  padding: 5px;
+  margin: 5px 10px 10px 0;
+  font-size: 1rem;
+}
+
+/* Optional: Add basic styling to buttons and forms for consistency */
+form button {
+  padding: 6px 12px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+form.border {
+  border: 1px solid #ccc;
+  padding: 10px;
+  width: fit-content;
+  margin-bottom: 20px;
+}
+
+/* Optional: Improve output readability */
+#jsonResult {
+  display: block;
+  margin-top: 20px;
+  background: #f4f4f4;
+  padding: 10px;
+  border: 1px dashed #ccc;
+  font-family: monospace;
+  white-space: pre-wrap;
 }

@@ -1,30 +1,47 @@
-// functions/getStockData.js
-const Stock = require('../models/Stock');
+const fetch = require('node-fetch');
+const mongoose = require('mongoose');
 
-const getStockData = async (symbol, ip, like) => {
-  const response = await fetch(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`);
-  const data = await response.json();
-  if (!data || !data.symbol) throw new Error('Stock not found');
+const stockSchema = new mongoose.Schema({
+  symbol: String,
+  likes: [String] // array of hashed IPs
+});
+const Stock = mongoose.model('Stock', stockSchema);
 
-  let stock = await Stock.findOne({ stock: symbol });
+// IP anonymization (safe & simple)
+function hashIP(ip) {
+  return ip.split('.').slice(0, 3).join('.') + '.0';
+}
 
-  if (!stock) {
-    stock = new Stock({ stock: symbol, likes: 0, ips: [] });
+module.exports = async function getStockData(stock, like, ip) {
+  const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stock}/quote`;
+  let data;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Stock not found or API failed');
+    data = await res.json();
+  } catch (err) {
+    console.error("Error in getStockData:", err.message);
+    return null;
   }
 
-  if (like && !stock.ips.includes(ip)) {
-    stock.likes++;
-    stock.ips.push(ip);
-    await stock.save();
-  } else if (!like) {
-    await stock.save();
+  const symbol = data.symbol;
+  const price = data.latestPrice;
+
+  const hashedIP = hashIP(ip);
+  let stockDoc = await Stock.findOne({ symbol });
+
+  if (!stockDoc) {
+    stockDoc = new Stock({ symbol, likes: like ? [hashedIP] : [] });
+  } else if (like && !stockDoc.likes.includes(hashedIP)) {
+    stockDoc.likes.push(hashedIP);
   }
+
+  await stockDoc.save();
 
   return {
-    stock: data.symbol,
-    price: parseFloat(data.latestPrice),
-    likes: stock.likes
+    stock: symbol,
+    price,
+    likes: stockDoc.likes.length
   };
 };
-
-module.exports = getStockData;

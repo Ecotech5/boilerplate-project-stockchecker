@@ -14,7 +14,8 @@
     "express": "^4.21.2",
     "helmet": "^3.23.3",
     "mongodb": "^6.17.0",
-    "mongoose": "^8.15.2"
+    "mongoose": "^8.15.2",
+    "node-fetch": "^2.7.0"
   },
   "devDependencies": {
     "chai": "^5.2.0",

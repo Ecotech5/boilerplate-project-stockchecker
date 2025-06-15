@@ -1,35 +1,33 @@
 const fetch = require('node-fetch');
 const mongoose = require('mongoose');
 
-// Schema and model
 const stockSchema = new mongoose.Schema({
   symbol: String,
-  likes: [String]  // Hashed IPs
+  likes: [String] // list of IPs
 });
+
 const Stock = mongoose.model('Stock', stockSchema);
 
-// Simple anonymization of IP
 function hashIP(ip) {
+  // Normalize IP to /24 subnet for basic deduplication
   return ip.split('.').slice(0, 3).join('.') + '.0';
 }
 
-// Fetch stock data and handle likes
 async function getStockData(stock, like, ip) {
   const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stock}/quote`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch stock data for ${stock}`);
+
+  if (!res.ok) throw new Error(`Failed to fetch data for ${stock}`);
 
   const data = await res.json();
-  const symbol = data.symbol;
-  const price = data.latestPrice;
+  const symbol = data.symbol?.toUpperCase();
+  const price = Number(data.latestPrice); // ensure it's a number
   const hashedIP = hashIP(ip);
 
   let stockDoc = await Stock.findOne({ symbol });
+
   if (!stockDoc) {
-    stockDoc = new Stock({
-      symbol,
-      likes: like ? [hashedIP] : []
-    });
+    stockDoc = new Stock({ symbol, likes: like ? [hashedIP] : [] });
   } else if (like && !stockDoc.likes.includes(hashedIP)) {
     stockDoc.likes.push(hashedIP);
   }
@@ -43,7 +41,6 @@ async function getStockData(stock, like, ip) {
   };
 }
 
-// Route handler
 module.exports = function (app) {
   app.get('/api/stock-prices', async (req, res) => {
     const { stock, like } = req.query;
@@ -51,38 +48,38 @@ module.exports = function (app) {
 
     try {
       if (Array.isArray(stock)) {
-        const [data1, data2] = await Promise.all([
+        const [stock1, stock2] = await Promise.all([
           getStockData(stock[0], like === 'true', ip),
           getStockData(stock[1], like === 'true', ip)
         ]);
 
-        return res.json({
+        res.json({
           stockData: [
             {
-              stock: data1.stock,
-              price: data1.price,
-              rel_likes: data1.likes - data2.likes
+              stock: stock1.stock,
+              price: stock1.price,
+              rel_likes: stock1.likes - stock2.likes
             },
             {
-              stock: data2.stock,
-              price: data2.price,
-              rel_likes: data2.likes - data1.likes
+              stock: stock2.stock,
+              price: stock2.price,
+              rel_likes: stock2.likes - stock1.likes
             }
           ]
         });
       } else {
-        const data = await getStockData(stock, like === 'true', ip);
-        return res.json({
+        const stockData = await getStockData(stock, like === 'true', ip);
+        res.json({
           stockData: {
-            stock: data.stock,
-            price: data.price,
-            likes: data.likes
+            stock: stockData.stock,
+            price: stockData.price,
+            likes: stockData.likes
           }
         });
       }
     } catch (err) {
-      console.error('API error:', err.message);
-      return res.status(500).json({ error: 'Internal Server Error' });
+      console.error('Error:', err.message);
+      res.status(500).json({ error: 'Unable to fetch stock data' });
     }
   });
 };

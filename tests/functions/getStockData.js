@@ -1,4 +1,3 @@
-// tests/2_functional-tests.js
 const chaiHttp = require('chai-http');
 const chai = require('chai');
 const assert = chai.assert;
@@ -6,10 +5,10 @@ const server = require('../server');
 
 chai.use(chaiHttp);
 
-describe('Functional Tests', function () {
-  let initialLikes = 0;
+suite('Functional Tests', function () {
+  let likesBefore;
 
-  it('Viewing one stock: GET /api/stock-prices/', function (done) {
+  test('1. Viewing one stock: GET request to /api/stock-prices/', function (done) {
     chai
       .request(server)
       .get('/api/stock-prices')
@@ -21,38 +20,40 @@ describe('Functional Tests', function () {
         assert.property(res.body.stockData, 'price');
         assert.property(res.body.stockData, 'likes');
         assert.equal(res.body.stockData.stock, 'GOOG');
-        initialLikes = res.body.stockData.likes;
+        likesBefore = res.body.stockData.likes;
         done();
       });
   });
 
-  it('Viewing one stock and liking it: GET /api/stock-prices/', function (done) {
+  test('2. Viewing one stock and liking it: GET request to /api/stock-prices/', function (done) {
     chai
       .request(server)
       .get('/api/stock-prices')
       .query({ stock: 'GOOG', like: true })
       .end(function (err, res) {
         assert.equal(res.status, 200);
+        assert.property(res.body, 'stockData');
         assert.equal(res.body.stockData.stock, 'GOOG');
-        assert.isAtLeast(res.body.stockData.likes, initialLikes);
+        assert.isAtLeast(res.body.stockData.likes, likesBefore); // Likes should increase or remain same (not decrease)
         done();
       });
   });
 
-  it('Viewing the same stock and liking it again (IP should not be double counted)', function (done) {
+  test('3. Viewing the same stock and liking it again (IP should not double count)', function (done) {
     chai
       .request(server)
       .get('/api/stock-prices')
       .query({ stock: 'GOOG', like: true })
       .end(function (err, res) {
         assert.equal(res.status, 200);
+        assert.property(res.body, 'stockData');
         assert.equal(res.body.stockData.stock, 'GOOG');
-        assert.equal(res.body.stockData.likes, initialLikes);
+        assert.equal(res.body.stockData.likes, likesBefore); // Should not increase
         done();
       });
   });
 
-  it('Viewing two stocks: GET /api/stock-prices/?stock=GOOG&stock=MSFT', function (done) {
+  test('4. Viewing two stocks: GET request to /api/stock-prices/', function (done) {
     chai
       .request(server)
       .get('/api/stock-prices')
@@ -60,7 +61,7 @@ describe('Functional Tests', function () {
       .end(function (err, res) {
         assert.equal(res.status, 200);
         assert.isArray(res.body.stockData);
-        assert.lengthOf(res.body.stockData, 2);
+        assert.equal(res.body.stockData.length, 2);
 
         const [stock1, stock2] = res.body.stockData;
         assert.property(stock1, 'stock');
@@ -75,7 +76,7 @@ describe('Functional Tests', function () {
       });
   });
 
-  it('Viewing two stocks and liking them: GET /api/stock-prices/?stock=GOOG&stock=MSFT&like=true', function (done) {
+  test('5. Viewing two stocks and liking them: GET request to /api/stock-prices/', function (done) {
     chai
       .request(server)
       .get('/api/stock-prices')
@@ -83,7 +84,7 @@ describe('Functional Tests', function () {
       .end(function (err, res) {
         assert.equal(res.status, 200);
         assert.isArray(res.body.stockData);
-        assert.lengthOf(res.body.stockData, 2);
+        assert.equal(res.body.stockData.length, 2);
 
         const [stock1, stock2] = res.body.stockData;
         assert.property(stock1, 'stock');

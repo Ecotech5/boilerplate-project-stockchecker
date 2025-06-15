@@ -14,8 +14,7 @@
     "express": "^4.21.2",
     "helmet": "^3.23.3",
     "mongodb": "^6.17.0",
-    "mongoose": "^8.15.2",
-    "node-fetch": "^3.3.2"
+    "mongoose": "^8.15.2"
   },
   "devDependencies": {
     "chai": "^5.2.0",
@@ -23,7 +22,11 @@
     "cross-env": "^7.0.3",
     "mocha": "^11.6.0"
   },
-  "keywords": ["node", "express", "freeCodeCamp"],
+  "keywords": [
+    "node",
+    "express",
+    "freeCodeCamp"
+  ],
   "author": "Emmanuel Calistus",
   "license": "MIT"
 }

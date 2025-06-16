@@ -4,15 +4,16 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const mongoose = require('mongoose');
-require('dotenv').config(); // Load .env variables
+require('dotenv').config();
 
-const apiRoutes = require('./routes/api.js');
-const fccTestingRoutes = require('./routes/fcctesting.js');
-const runner = require('./test-runner');
+// Import routes
+const apiRoutes = require('./routes/api');  // Main API routes
+const fccTestingRoutes = require('./routes/fcctesting');  // FCC testing routes
+const runner = require('./test-runner');  // Test runner
 
 const app = express();
 
-// ✅ CSP headers (only allow self-hosted scripts & styles) — Challenge 2
+// Middleware
 app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
@@ -21,82 +22,66 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve public assets
 app.use('/public', express.static(process.cwd() + '/public'));
-
-app.use(cors({ origin: '*' })); // For FCC test compatibility
+app.use(cors({ origin: '*' }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// ✅ Improved MongoDB connection with modern options
+// Database connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => {
     console.error('❌ MongoDB connection error:', err);
-    // Exit process if DB connection fails in production
     if (process.env.NODE_ENV === 'production') process.exit(1);
   });
 
-// Database connection events
-mongoose.connection.on('connected', () => {
-  console.log('🗄️ MongoDB connection established');
-});
+// Routes
+app.use('/api', apiRoutes);  // Main API endpoints
+fccTestingRoutes(app);  // FCC testing endpoints
 
-mongoose.connection.on('error', (err) => {
-  console.error('❌ MongoDB connection error:', err);
-});
-
-// Serve HTML homepage
+// Homepage
 app.get('/', (req, res) => {
   res.sendFile(process.cwd() + '/views/index.html');
 });
 
-// FCC test routes
-fccTestingRoutes(app);
-
-// Project API routes
-app.use('/api', apiRoutes); // Added explicit '/api' prefix
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('⚠️ Error:', err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
-
-// 404 fallback
+// 404 Handler
 app.use((req, res) => {
   res.status(404).type('text').send('Not Found');
 });
 
-// Start server
+// Error Handler
+app.use((err, req, res, next) => {
+  console.error('⚠️ Server Error:', err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
+// Server startup
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   
-  // Run tests if in test mode
+  // Start tests if in test environment
   if (process.env.NODE_ENV === 'test') {
     console.log('🧪 Running tests...');
     setTimeout(() => {
       try {
         runner.run();
       } catch (err) {
-        console.log('❌ Test runner error:');
-        console.error(err);
+        console.error('❌ Test runner error:', err);
       }
-    }, 3500); // Increased timeout for DB connection
+    }, 1500);
   }
 });
 
-// Handle server shutdown gracefully
+// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🛑 SIGTERM received. Shutting down gracefully...');
   server.close(() => {
-    console.log('💤 Server terminated');
     mongoose.connection.close(false, () => {
-      console.log('🗄️ MongoDB connection closed');
+      console.log('💤 Server terminated');
       process.exit(0);
     });
   });
 });
 
-module.exports = app; // For testing
+module.exports = app;

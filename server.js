@@ -48,7 +48,7 @@ app.get('/', (req, res) => {
 fccTestingRoutes(app);
 
 // Project API routes
-apiRoutes(app);
+app.use('/api/stock-prices', apiRoutes);
 
 // 404 fallback
 app.use((req, res) => {

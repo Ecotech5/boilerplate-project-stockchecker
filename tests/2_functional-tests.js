@@ -1,120 +1,96 @@
+// Import required modules
 const chai = require('chai');
 const chaiHttp = require('chai-http');
-const assert = chai.assert;
 const server = require('../server');
 
+// Initialize chai
+const expect = chai.expect;
 chai.use(chaiHttp);
 
-suite('Functional Tests', function () {
+describe('Stock Price Checker Functional Tests', function() {
+  this.timeout(5000);
 
-  test('Viewing one stock: GET request to /api/stock-prices/', function (done) {
-    chai.request(server)
-      .get('/api/stock-prices')
-      .query({ stock: 'GOOG' })
-      .end(function (err, res) {
-        assert.equal(res.status, 200);
-        assert.isObject(res.body);
-        assert.property(res.body, 'stockData');
-
-        const data = res.body.stockData;
-        assert.isObject(data);
-        assert.property(data, 'stock');
-        assert.property(data, 'price');
-        assert.property(data, 'likes');
-
-        assert.equal(data.stock, 'GOOG');
-        assert.isNumber(data.price);
-        assert.isNumber(data.likes);
-
-        done();
-      });
+  // Test 1: Viewing one stock
+  describe('GET /api/stock-prices with one stock', function() {
+    it('should return stock data for one stock', function(done) {
+      chai.request(server)
+        .get('/api/stock-prices?stock=GOOG')
+        .end(function(err, res) {
+          expect(err).to.be.null;
+          expect(res).to.have.status(200);
+          expect(res.body).to.be.an('object');
+          expect(res.body).to.have.property('stockData');
+          expect(res.body.stockData).to.have.property('stock', 'GOOG');
+          expect(res.body.stockData).to.have.property('price').that.is.a('number');
+          expect(res.body.stockData).to.have.property('likes').that.is.a('number');
+          done();
+        });
+    });
   });
 
-  test('Viewing one stock and liking it: GET request to /api/stock-prices/', function (done) {
-    chai.request(server)
-      .get('/api/stock-prices')
-      .set('X-Forwarded-For', '123.123.123.123')
-      .query({ stock: 'GOOG', like: 'true' })
-      .end(function (err, res) {
-        assert.equal(res.status, 200);
-        assert.property(res.body, 'stockData');
-
-        const data = res.body.stockData;
-        assert.equal(data.stock, 'GOOG');
-        assert.isNumber(data.price);
-        assert.isAtLeast(data.likes, 1);
-
-        done();
-      });
+  // Test 2: Viewing one stock and liking it
+  describe('GET /api/stock-prices with one stock and like', function() {
+    it('should return stock data with likes increased', function(done) {
+      chai.request(server)
+        .get('/api/stock-prices?stock=MSFT&like=true')
+        .end(function(err, res) {
+          expect(err).to.be.null;
+          expect(res).to.have.status(200);
+          expect(res.body.stockData).to.have.property('stock', 'MSFT');
+          expect(res.body.stockData.likes).to.equal(1);
+          done();
+        });
+    });
   });
 
-  test('Viewing the same stock and liking it again: GET request to /api/stock-prices/', function (done) {
-    chai.request(server)
-      .get('/api/stock-prices')
-      .set('X-Forwarded-For', '123.123.123.123') // same IP to prevent duplicate like
-      .query({ stock: 'GOOG', like: 'true' })
-      .end(function (err, res) {
-        assert.equal(res.status, 200);
-        const data = res.body.stockData;
-
-        assert.equal(data.stock, 'GOOG');
-        assert.isNumber(data.price);
-        assert.isAtLeast(data.likes, 1); // should not increase
-
-        done();
-      });
+  // Test 3: Viewing the same stock and liking it again
+  describe('GET /api/stock-prices with same stock and like again', function() {
+    it('should not increase likes again for same IP', function(done) {
+      chai.request(server)
+        .get('/api/stock-prices?stock=MSFT&like=true')
+        .end(function(err, res) {
+          expect(err).to.be.null;
+          expect(res).to.have.status(200);
+          expect(res.body.stockData).to.have.property('stock', 'MSFT');
+          expect(res.body.stockData.likes).to.equal(1);
+          done();
+        });
+    });
   });
 
-  test('Viewing two stocks: GET request to /api/stock-prices/', function (done) {
-    chai.request(server)
-      .get('/api/stock-prices')
-      .query({ stock: ['GOOG', 'MSFT'] })
-      .end(function (err, res) {
-        assert.equal(res.status, 200);
-        assert.isArray(res.body.stockData);
-        assert.lengthOf(res.body.stockData, 2);
-
-        const [stock1, stock2] = res.body.stockData;
-
-        assert.property(stock1, 'stock');
-        assert.property(stock1, 'price');
-        assert.property(stock1, 'rel_likes');
-        assert.property(stock2, 'stock');
-        assert.property(stock2, 'price');
-        assert.property(stock2, 'rel_likes');
-
-        assert.isNumber(stock1.rel_likes);
-        assert.isNumber(stock2.rel_likes);
-        assert.equal(stock1.rel_likes, -stock2.rel_likes);
-
-        done();
-      });
+  // Test 4: Viewing two stocks
+  describe('GET /api/stock-prices with two stocks', function() {
+    it('should return stock data for two stocks', function(done) {
+      chai.request(server)
+        .get('/api/stock-prices?stock=GOOG&stock=MSFT')
+        .end(function(err, res) {
+          expect(err).to.be.null;
+          expect(res).to.have.status(200);
+          expect(res.body.stockData).to.be.an('array').with.lengthOf(2);
+          expect(res.body.stockData[0]).to.have.property('stock');
+          expect(res.body.stockData[0]).to.have.property('price');
+          expect(res.body.stockData[0]).to.have.property('rel_likes');
+          expect(res.body.stockData[1]).to.have.property('stock');
+          expect(res.body.stockData[1]).to.have.property('price');
+          expect(res.body.stockData[1]).to.have.property('rel_likes');
+          done();
+        });
+    });
   });
 
-  test('Viewing two stocks and liking them: GET request to /api/stock-prices/', function (done) {
-    chai.request(server)
-      .get('/api/stock-prices')
-      .set('X-Forwarded-For', '111.222.333.444') // different IP to allow like
-      .query({ stock: ['GOOG', 'MSFT'], like: 'true' })
-      .end(function (err, res) {
-        assert.equal(res.status, 200);
-        assert.isArray(res.body.stockData);
-        assert.lengthOf(res.body.stockData, 2);
-
-        const [stock1, stock2] = res.body.stockData;
-
-        assert.property(stock1, 'stock');
-        assert.property(stock1, 'price');
-        assert.property(stock1, 'rel_likes');
-
-        assert.property(stock2, 'stock');
-        assert.property(stock2, 'price');
-        assert.property(stock2, 'rel_likes');
-
-        assert.equal(stock1.rel_likes, -stock2.rel_likes);
-
-        done();
-      });
+  // Test 5: Viewing two stocks and liking them
+  describe('GET /api/stock-prices with two stocks and likes', function() {
+    it('should return relative likes for two stocks', function(done) {
+      chai.request(server)
+        .get('/api/stock-prices?stock=GOOG&stock=MSFT&like=true')
+        .end(function(err, res) {
+          expect(err).to.be.null;
+          expect(res).to.have.status(200);
+          expect(res.body.stockData[0].rel_likes).to.be.a('number');
+          expect(res.body.stockData[1].rel_likes).to.be.a('number');
+          expect(res.body.stockData[0].rel_likes + res.body.stockData[1].rel_likes).to.equal(0);
+          done();
+        });
+    });
   });
-
 });

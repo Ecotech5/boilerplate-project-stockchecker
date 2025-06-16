@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express');
 const router = express.Router();
-const { handleStock } = require('../controllers/stockdata');
+const { handleStock } = require('../routes/stockdata');
 
 module.exports = function (app) {
   app.get('/api/stock-prices', async (req, res) => {

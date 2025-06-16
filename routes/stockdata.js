@@ -1,6 +1,5 @@
-const axios = require('axios');
-const Stock = require('../models/Stock'); // your Mongoose model
-const fetch = require('node-fetch'); // you can also use axios if preferred
+const fetch = require('node-fetch');
+const Stock = require('../models/Stock');
 
 const getPrice = async (stockSymbol) => {
   const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stockSymbol}/quote`;
@@ -52,13 +51,18 @@ const getStockData = async (req, res) => {
         handleStock(stock[1], like, ip)
       ]);
 
-      const rel_likes1 = stock1.likes - stock2.likes;
-      const rel_likes2 = stock2.likes - stock1.likes;
-
       return res.json({
         stockData: [
-          { stock: stock1.stock, price: stock1.price, rel_likes: rel_likes1 },
-          { stock: stock2.stock, price: stock2.price, rel_likes: rel_likes2 }
+          {
+            stock: stock1.stock,
+            price: stock1.price,
+            rel_likes: stock1.likes - stock2.likes
+          },
+          {
+            stock: stock2.stock,
+            price: stock2.price,
+            rel_likes: stock2.likes - stock1.likes
+          }
         ]
       });
     } else {

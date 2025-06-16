@@ -5,3 +5,4 @@ const handleStockRequest = require('./stockdata'); // assuming same folder
 router.get('/stock-prices', handleStockRequest);
 
 module.exports = router;
+

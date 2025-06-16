@@ -1,78 +1,46 @@
-const fetch = require('node-fetch');
-const Stock = require('../models/Stock');
+// routes/stockdata.js
+const fetch = require('node-fetch'); // Use native fetch in newer Node or import this for older versions
+const Stock = require('../models/Stock'); // assuming you have a Mongoose model defined
 
-const getPrice = async (stockSymbol) => {
-  const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stockSymbol}/quote`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return data.latestPrice;
-};
-
-const handleStock = async (stock, like, ip) => {
-  const symbol = stock.toUpperCase();
-  let price;
+async function getStockData(req, res) {
+  const { stock, like } = req.query;
+  const stockSymbol = stock.toUpperCase();
 
   try {
-    price = await getPrice(symbol);
-  } catch (err) {
-    throw new Error(`Failed to fetch price for ${symbol}`);
-  }
+    // Fetch live stock price
+    const response = await fetch(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stockSymbol}/quote`);
+    const data = await response.json();
 
-  let stockDoc = await Stock.findOne({ stock: symbol });
+    if (!data.symbol) {
+      return res.status(400).json({ error: 'invalid stock symbol' });
+    }
 
-  if (!stockDoc) {
-    stockDoc = new Stock({ stock: symbol, likes: [] });
-  }
+    let dbStock = await Stock.findOne({ stock: stockSymbol });
+    if (!dbStock) {
+      dbStock = new Stock({ stock: stockSymbol, likes: 0, ips: [] });
+    }
 
-  if (like && !stockDoc.likes.includes(ip)) {
-    stockDoc.likes.push(ip);
-    await stockDoc.save();
-  }
-
-  return {
-    stock: symbol,
-    price,
-    likes: stockDoc.likes.length
-  };
-};
-
-const getStockData = async (req, res) => {
-  try {
-    const { stock, like } = req.query;
+    // Handle like
     const ip = req.ip;
-
-    if (!stock) {
-      return res.status(400).json({ error: 'Stock symbol is required' });
+    if (like === 'true' && !dbStock.ips.includes(ip)) {
+      dbStock.likes++;
+      dbStock.ips.push(ip);
     }
 
-    if (Array.isArray(stock)) {
-      const [stock1, stock2] = await Promise.all([
-        handleStock(stock[0], like, ip),
-        handleStock(stock[1], like, ip)
-      ]);
+    await dbStock.save();
 
-      return res.json({
-        stockData: [
-          {
-            stock: stock1.stock,
-            price: stock1.price,
-            rel_likes: stock1.likes - stock2.likes
-          },
-          {
-            stock: stock2.stock,
-            price: stock2.price,
-            rel_likes: stock2.likes - stock1.likes
-          }
-        ]
-      });
-    } else {
-      const stockData = await handleStock(stock, like, ip);
-      return res.json({ stockData });
-    }
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Server error' });
+    return res.json({
+      stockData: {
+        stock: stockSymbol,
+        price: parseFloat(data.latestPrice),
+        likes: dbStock.likes
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
-};
+}
 
 module.exports = getStockData;

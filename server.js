@@ -48,7 +48,8 @@ app.get('/', (req, res) => {
 fccTestingRoutes(app);
 
 // Project API routes
-app.use(apiRoutes);
+app.use('/api/stock-prices', apiRoutes);
+
 
 // 404 fallback
 app.use((req, res) => {
@@ -75,3 +76,5 @@ app.listen(PORT, () => {
 });
 
 module.exports = app; // For testing
+
+

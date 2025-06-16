@@ -1,47 +1,94 @@
 const fetch = require('node-fetch');
-const mongoose = require('mongoose');
+const Stock = require('../models/Stock');
 
-const stockSchema = new mongoose.Schema({
-  symbol: String,
-  likes: [String] // array of hashed IPs
-});
-const Stock = mongoose.model('Stock', stockSchema);
+async function fetchStockInfo(stockSymbol) {
+  const response = await fetch(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stockSymbol}/quote`);
+  const data = await response.json();
 
-// IP anonymization (safe & simple)
-function hashIP(ip) {
-  return ip.split('.').slice(0, 3).join('.') + '.0';
-}
-
-module.exports = async function getStockData(stock, like, ip) {
-  const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stock}/quote`;
-  let data;
-
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Stock not found or API failed');
-    data = await res.json();
-  } catch (err) {
-    console.error("Error in getStockData:", err.message);
-    return null;
-  }
-
-  const symbol = data.symbol;
-  const price = data.latestPrice;
-
-  const hashedIP = hashIP(ip);
-  let stockDoc = await Stock.findOne({ symbol });
-
-  if (!stockDoc) {
-    stockDoc = new Stock({ symbol, likes: like ? [hashedIP] : [] });
-  } else if (like && !stockDoc.likes.includes(hashedIP)) {
-    stockDoc.likes.push(hashedIP);
-  }
-
-  await stockDoc.save();
+  if (!data.symbol) throw new Error('invalid stock symbol');
 
   return {
-    stock: symbol,
-    price,
-    likes: stockDoc.likes.length
+    stock: stockSymbol,
+    price: parseFloat(data.latestPrice)
   };
-};
+}
+
+async function processStock(stockSymbol, ip, like) {
+  let dbStock = await Stock.findOne({ stock: stockSymbol });
+  
+  if (!dbStock) {
+    dbStock = new Stock({ stock: stockSymbol, likes: 0, ips: [] });
+  }
+
+  if (like === 'true' && !dbStock.ips.includes(ip)) {
+    dbStock.likes += 1;
+    dbStock.ips.push(ip);
+  }
+
+  await dbStock.save();
+
+  const stockInfo = await fetchStockInfo(stockSymbol);
+
+  return {
+    ...stockInfo,
+    likes: dbStock.likes
+  };
+}
+
+async function getStockData(req, res) {
+  try {
+    let { stock, like } = req.query;
+    const ip = req.ip;
+
+    if (!stock) {
+      return res.status(400).json({ error: 'stock query is required' });
+    }
+
+    // === Dual stock comparison ===
+    if (Array.isArray(stock)) {
+      const stock1 = stock[0].toUpperCase();
+      const stock2 = stock[1].toUpperCase();
+
+      const [data1, data2] = await Promise.all([
+        processStock(stock1, ip, like),
+        processStock(stock2, ip, like)
+      ]);
+
+      const relLikes1 = data1.likes - data2.likes;
+      const relLikes2 = data2.likes - data1.likes;
+
+      return res.json({
+        stockData: [
+          {
+            stock: data1.stock,
+            price: data1.price,
+            rel_likes: relLikes1
+          },
+          {
+            stock: data2.stock,
+            price: data2.price,
+            rel_likes: relLikes2
+          }
+        ]
+      });
+    }
+
+    // === Single stock ===
+    const stockSymbol = stock.toUpperCase();
+    const result = await processStock(stockSymbol, ip, like);
+
+    return res.json({
+      stockData: {
+        stock: result.stock,
+        price: result.price,
+        likes: result.likes
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message || 'Server error' });
+  }
+}
+
+module.exports = getStockData;

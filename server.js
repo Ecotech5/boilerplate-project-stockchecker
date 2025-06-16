@@ -4,7 +4,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const mongoose = require('mongoose');
-require('dotenv').config(); // ✅ Load environment variables from .env
+require('dotenv').config(); // Load .env variables
 
 const apiRoutes = require('./routes/api.js');
 const fccTestingRoutes = require('./routes/fcctesting.js');
@@ -12,55 +12,63 @@ const runner = require('./test-runner');
 
 const app = express();
 
-// ✅ Security headers (Challenge Requirement #2)
+// ✅ CSP headers (only allow self-hosted scripts & styles) — Challenge 2
 app.use((req, res, next) => {
-  res.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; style-src 'self'"
+  );
   next();
 });
 
+// Serve public assets
 app.use('/public', express.static(process.cwd() + '/public'));
 
-app.use(cors({ origin: '*' })); // Allow FCC testing
+app.use(cors({ origin: '*' })); // For FCC test compatibility
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Connect to MongoDB using Mongoose
+// ✅ Connect to MongoDB using .env MONGO_URI
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true
+  useUnifiedTopology: true,
 })
-.then(() => console.log('Connected to MongoDB'))
-.catch((err) => console.error('MongoDB connection error:', err));
+  .then(() => console.log('✅ Connected to MongoDB'))
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err.message);
+    process.exit(1); // Exit if DB fails
+  });
 
-// Index route
+// Serve HTML homepage
 app.get('/', (req, res) => {
   res.sendFile(process.cwd() + '/views/index.html');
 });
 
-// FCC Testing Routes
+// FCC test routes
 fccTestingRoutes(app);
 
-// API Routes
+// Project API routes
 apiRoutes(app);
 
-// 404 Not Found middleware
-app.use((req, res, next) => {
+// 404 fallback
+app.use((req, res) => {
   res.status(404).type('text').send('Not Found');
 });
 
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Your app is listening on port ${PORT}`);
-  
+  console.log(`🚀 Server running on port ${PORT}`);
+
+  // Run tests if in test mode
   if (process.env.NODE_ENV === 'test') {
-    console.log('Running Tests...');
+    console.log('🧪 Running tests...');
     setTimeout(() => {
       try {
         runner.run();
-      } catch (e) {
-        console.log('Tests are not valid:');
-        console.error(e);
+      } catch (err) {
+        console.log('❌ Test runner error:');
+        console.error(err);
       }
     }, 3500);
   }

@@ -5,19 +5,24 @@ const Stock = require('../models/Stock');
 
 const getStockPrices = async (req, res, next) => {
   try {
-    const { stock, like } = req.query;
+    let { stock, like } = req.query;
     const ip = req.ip;
 
     if (!stock) {
       return res.status(400).json({ error: 'Stock symbol is required' });
     }
 
-    // Handle single stock
+    // Normalize and validate input
     if (typeof stock === 'string') {
+      stock = stock.trim().toUpperCase();
+      if (!stock) {
+        return res.status(400).json({ error: 'Invalid stock symbol' });
+      }
+
       const stockData = await fetchStockData(stock);
       const likes = await handleLikes(stock, like, ip);
-      
-      return res.json({ 
+
+      return res.json({
         stockData: {
           stock: stockData.symbol,
           price: stockData.price,
@@ -25,24 +30,29 @@ const getStockPrices = async (req, res, next) => {
         }
       });
     }
-    
-    // Handle multiple stocks
+
     if (Array.isArray(stock)) {
       if (stock.length !== 2) {
         return res.status(400).json({ error: 'Please provide exactly 2 stocks' });
       }
 
-      const [stock1, stock2] = stock;
+      const stock1 = stock[0]?.trim().toUpperCase();
+      const stock2 = stock[1]?.trim().toUpperCase();
+
+      if (!stock1 || !stock2) {
+        return res.status(400).json({ error: 'One or both stock symbols are invalid' });
+      }
+
       const [data1, data2] = await Promise.all([
         fetchStockData(stock1),
         fetchStockData(stock2)
       ]);
-      
+
       const [likes1, likes2] = await Promise.all([
         handleLikes(stock1, like, ip),
         handleLikes(stock2, like, ip)
       ]);
-      
+
       return res.json({
         stockData: [
           {
@@ -58,7 +68,7 @@ const getStockPrices = async (req, res, next) => {
         ]
       });
     }
-    
+
     return res.status(400).json({ error: 'Invalid stock parameter' });
   } catch (err) {
     console.error('Controller Error:', err);
@@ -69,11 +79,10 @@ const getStockPrices = async (req, res, next) => {
 // Helper function to fetch stock data
 async function fetchStockData(symbol) {
   try {
-    // Use mock data for testing environment
     if (process.env.NODE_ENV === 'test') {
       return {
         symbol: symbol.toUpperCase(),
-        price: Math.random() * 100 + 50 // Random price between 50-150
+        price: Math.random() * 100 + 50
       };
     }
 
@@ -81,11 +90,11 @@ async function fetchStockData(symbol) {
       `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`,
       { timeout: 3000 }
     );
-    
+
     if (!response.data?.symbol) {
       throw new Error('Invalid stock symbol');
     }
-    
+
     return {
       symbol: response.data.symbol,
       price: response.data.latestPrice
@@ -94,7 +103,7 @@ async function fetchStockData(symbol) {
     console.error(`API Error for ${symbol}:`, err.message);
     return {
       symbol: symbol.toUpperCase(),
-      price: Math.random() * 100 + 50 // Fallback mock data
+      price: Math.random() * 100 + 50
     };
   }
 }
@@ -103,21 +112,24 @@ async function fetchStockData(symbol) {
 async function handleLikes(stock, like, ip) {
   try {
     const stockSymbol = stock.toUpperCase();
-    
+
+    if (!stockSymbol) {
+      throw new Error('Missing stock symbol during like handling');
+    }
+
     if (like !== 'true') {
       const doc = await Stock.findOne({ stock: stockSymbol });
       return doc ? doc.likes.length : 0;
     }
-    
-    // Normalize IP address (remove IPv6 prefix if present)
+
     const simpleIp = ip.replace('::ffff:', '');
-    
+
     const doc = await Stock.findOneAndUpdate(
       { stock: stockSymbol },
-      { $addToSet: { likes: simpleIp } }, // Add IP if not already present
+      { $addToSet: { likes: simpleIp } },
       { upsert: true, new: true }
     );
-    
+
     return doc.likes.length;
   } catch (err) {
     console.error('Database Error:', err);

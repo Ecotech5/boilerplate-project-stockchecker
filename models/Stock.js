@@ -4,18 +4,25 @@ const stockSchema = new mongoose.Schema({
   stock: {
     type: String,
     required: true,
+    unique: true,
     uppercase: true,
-    unique: true
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return v && v.length > 0;
+      },
+      message: 'Stock symbol cannot be empty'
+    }
   },
   likes: {
-    type: [String],  // Store IP addresses as strings
+    type: [String],
     default: []
   }
 }, {
-  timestamps: true  // Adds createdAt and updatedAt fields
+  timestamps: true
 });
 
-// Create index for faster queries
-stockSchema.index({ stock: 1 });
+// Create index
+stockSchema.index({ stock: 1 }, { unique: true });
 
 module.exports = mongoose.model('Stock', stockSchema);

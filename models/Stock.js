@@ -4,8 +4,7 @@ const stockSchema = new mongoose.Schema({
   stock: {
     type: String,
     required: true,
-    unique: true,
-    uppercase: true,
+    uppercase: true,  // Removed `unique: true` from here (keep it only in schema.index)
     trim: true,
     validate: {
       validator: function(v) {
@@ -22,7 +21,10 @@ const stockSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Create index
-stockSchema.index({ stock: 1 }, { unique: true });
+// Single index definition (combines uniqueness and performance)
+stockSchema.index({ stock: 1 }, { 
+  unique: true,
+  collation: { locale: 'en', strength: 2 }  // Case-insensitive uniqueness
+});
 
 module.exports = mongoose.model('Stock', stockSchema);

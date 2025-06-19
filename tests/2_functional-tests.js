@@ -1,8 +1,8 @@
-
 // Import required modules
 const chai = require('chai');
 const chaiHttp = require('chai-http');
 const server = require('../server');
+const Stock = require('../models/Stock');  // Add this line to import your Stock model
 
 // Initialize chai
 const expect = chai.expect;
@@ -10,6 +10,13 @@ chai.use(chaiHttp);
 
 describe('Stock Price Checker Functional Tests', function() {
   this.timeout(5000);
+
+  // Add this before hook to clean the database before each test
+  beforeEach(function(done) {
+    Stock.deleteMany({})
+      .then(() => done())
+      .catch(err => done(err));
+  });
 
   // Test 1: Viewing one stock
   describe('GET /api/stock-prices with one stock', function() {
@@ -47,14 +54,20 @@ describe('Stock Price Checker Functional Tests', function() {
   // Test 3: Viewing the same stock and liking it again
   describe('GET /api/stock-prices with same stock and like again', function() {
     it('should not increase likes again for same IP', function(done) {
+      // First request to like the stock
       chai.request(server)
         .get('/api/stock-prices?stock=MSFT&like=true')
-        .end(function(err, res) {
-          expect(err).to.be.null;
-          expect(res).to.have.status(200);
-          expect(res.body.stockData).to.have.property('stock', 'MSFT');
-          expect(res.body.stockData.likes).to.equal(1);
-          done();
+        .end(() => {
+          // Second request from same IP
+          chai.request(server)
+            .get('/api/stock-prices?stock=MSFT&like=true')
+            .end(function(err, res) {
+              expect(err).to.be.null;
+              expect(res).to.have.status(200);
+              expect(res.body.stockData).to.have.property('stock', 'MSFT');
+              expect(res.body.stockData.likes).to.equal(1);
+              done();
+            });
         });
     });
   });

@@ -21,9 +21,9 @@ app.use(helmet({
       imgSrc: ["'self'"],
       connectSrc: ["'self'"],
       objectSrc: ["'none'"],
-      upgradeInsecureRequests: [],
-    },
-  },
+      upgradeInsecureRequests: true // ✅ FIXED: was [] (invalid), now true
+    }
+  }
 }));
 
 app.use(cors({ origin: '*' }));

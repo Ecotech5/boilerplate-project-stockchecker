@@ -1,117 +1,57 @@
-'use strict';
-
-const axios = require('axios');
+// routes/stockdata.js or controllers/stockController.js
+const fetch = require('node-fetch');
 const Stock = require('../models/Stock');
+const crypto = require('crypto');
 
-// GET handler for /api/stock-prices
-const getStockPrices = async (req, res, next) => {
-  try {
-    let { stock, like } = req.query;
-    const ip = req.ip.replace('::ffff:', '');
-
-    if (!stock) {
-      return res.status(400).json({ error: 'Stock symbol is required' });
-    }
-
-    if (typeof stock === 'string') {
-      // Single stock
-      const symbol = stock.trim().toUpperCase();
-      const stockData = await fetchStockData(symbol);
-      const likes = await handleLikes(symbol, like, ip);
-
-      return res.json({
-        stockData: {
-          stock: stockData.symbol,
-          price: stockData.price,
-          likes
-        }
-      });
-    }
-
-    if (Array.isArray(stock) && stock.length === 2) {
-      // Dual stock comparison
-      const [symbol1, symbol2] = stock.map(s => s.trim().toUpperCase());
-
-      const [data1, data2] = await Promise.all([
-        fetchStockData(symbol1),
-        fetchStockData(symbol2)
-      ]);
-
-      const [likes1, likes2] = await Promise.all([
-        handleLikes(symbol1, like, ip),
-        handleLikes(symbol2, like, ip)
-      ]);
-
-      return res.json({
-        stockData: [
-          {
-            stock: data1.symbol,
-            price: data1.price,
-            rel_likes: likes1 - likes2
-          },
-          {
-            stock: data2.symbol,
-            price: data2.price,
-            rel_likes: likes2 - likes1
-          }
-        ]
-      });
-    }
-
-    return res.status(400).json({ error: 'Invalid stock query format' });
-  } catch (err) {
-    console.error('Controller Error:', err.message);
-    next(err);
-  }
-};
-
-// Fetch stock data from FCC proxy or mock in test mode
-async function fetchStockData(symbol) {
-  try {
-    if (process.env.NODE_ENV === 'test') {
-      return {
-        symbol,
-        price: parseFloat((Math.random() * 100 + 50).toFixed(2))
-      };
-    }
-
-    const response = await axios.get(
-      `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`,
-      { timeout: 5000 }
-    );
-
-    if (!response.data?.symbol || !response.data?.latestPrice) {
-      throw new Error('Invalid API response');
-    }
-
-    return {
-      symbol: response.data.symbol,
-      price: parseFloat(response.data.latestPrice)
-    };
-  } catch (err) {
-    console.error(`API error for ${symbol}:`, err.message);
-    // Fallback to mock price
-    return {
-      symbol,
-      price: parseFloat((Math.random() * 100 + 50).toFixed(2))
-    };
-  }
+// Sanitize stock input
+function cleanStockName(stock) {
+  if (!stock || typeof stock !== 'string') return null;
+  return stock.trim().toUpperCase();
 }
 
-// Manage likes with $addToSet
-async function handleLikes(symbol, like, ip) {
-  try {
-    const update = like === 'true' ? { $addToSet: { likes: ip } } : {};
-    const doc = await Stock.findOneAndUpdate(
-      { stock: symbol },
-      update,
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-    return doc.likes.length;
-  } catch (err) {
-    console.error(`Database error for ${symbol}:`, err.message);
-    return 0;
+// Fetch stock price
+async function fetchStockInfo(rawStock) {
+  const stock = cleanStockName(rawStock);
+  if (!stock) throw new Error('Invalid stock');
+
+  const response = await fetch(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stock}/quote`);
+  const data = await response.json();
+
+  if (!data?.symbol || !data?.latestPrice) {
+    throw new Error(`Invalid API response for ${stock}`);
   }
+
+  return {
+    stock: data.symbol,
+    price: parseFloat(data.latestPrice)
+  };
 }
 
-module.exports = { getStockPrices };
+// Handle DB like logic
+async function processStock(rawStock, ip, like) {
+  const stock = cleanStockName(rawStock);
+  if (!stock) throw new Error('Invalid stock');
+
+  const hashedIp = crypto.createHash('md5').update(ip).digest('hex');
+  let dbStock = await Stock.findOne({ stock });
+
+  if (!dbStock) {
+    dbStock = new Stock({ stock });
+  }
+
+  if (like === 'true' && !dbStock.likes.includes(hashedIp)) {
+    dbStock.likes.push(hashedIp);
+  }
+
+  await dbStock.save();
+
+  const stockInfo = await fetchStockInfo(stock);
+
+  return {
+    stock: stockInfo.stock,
+    price: stockInfo.price,
+    likes: dbStock.likes.length
+  };
+}
+
+module.exports = { processStock, fetchStockInfo };

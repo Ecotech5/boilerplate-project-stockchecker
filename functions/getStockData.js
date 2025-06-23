@@ -1,94 +1,56 @@
 const fetch = require('node-fetch');
 const Stock = require('../models/Stock');
 
-async function fetchStockInfo(stockSymbol) {
-  const response = await fetch(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stockSymbol}/quote`);
+// Helper to sanitize input symbol
+function cleanSymbol(symbol) {
+  if (!symbol || typeof symbol !== 'string') return null;
+  return symbol.trim().toUpperCase();
+}
+
+// Fetch price from FCC proxy
+async function fetchStockInfo(rawSymbol) {
+  const symbol = cleanSymbol(rawSymbol);
+  if (!symbol) throw new Error('Invalid stock symbol');
+
+  const response = await fetch(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`);
   const data = await response.json();
 
-  if (!data.symbol) throw new Error('invalid stock symbol');
+  if (!data?.symbol || !data?.latestPrice) {
+    throw new Error(`Invalid API response for ${symbol}`);
+  }
 
   return {
-    stock: stockSymbol,
+    symbol: data.symbol,
     price: parseFloat(data.latestPrice)
   };
 }
 
-async function processStock(stockSymbol, ip, like) {
-  let dbStock = await Stock.findOne({ stock: stockSymbol });
-  
+// Handle DB logic and likes
+async function processStock(rawSymbol, ip, like) {
+  const symbol = cleanSymbol(rawSymbol);
+  if (!symbol) throw new Error('Invalid stock symbol');
+
+  let dbStock = await Stock.findOne({ symbol });
+
+  // Create new entry if not found
   if (!dbStock) {
-    dbStock = new Stock({ stock: stockSymbol, likes: 0, ips: [] });
+    dbStock = new Stock({ symbol, likes: [] });
   }
 
-  if (like === 'true' && !dbStock.ips.includes(ip)) {
-    dbStock.likes += 1;
-    dbStock.ips.push(ip);
+  // Like logic
+  if (like === 'true' && !dbStock.likes.includes(ip)) {
+    dbStock.likes.push(ip);
   }
 
   await dbStock.save();
 
-  const stockInfo = await fetchStockInfo(stockSymbol);
+  const stockInfo = await fetchStockInfo(symbol);
 
   return {
-    ...stockInfo,
-    likes: dbStock.likes
+    symbol: stockInfo.symbol,
+    price: stockInfo.price,
+    likes: dbStock.likes.length
   };
 }
 
-async function getStockData(req, res) {
-  try {
-    let { stock, like } = req.query;
-    const ip = req.ip;
-
-    if (!stock) {
-      return res.status(400).json({ error: 'stock query is required' });
-    }
-
-    // === Dual stock comparison ===
-    if (Array.isArray(stock)) {
-      const stock1 = stock[0].toUpperCase();
-      const stock2 = stock[1].toUpperCase();
-
-      const [data1, data2] = await Promise.all([
-        processStock(stock1, ip, like),
-        processStock(stock2, ip, like)
-      ]);
-
-      const relLikes1 = data1.likes - data2.likes;
-      const relLikes2 = data2.likes - data1.likes;
-
-      return res.json({
-        stockData: [
-          {
-            stock: data1.stock,
-            price: data1.price,
-            rel_likes: relLikes1
-          },
-          {
-            stock: data2.stock,
-            price: data2.price,
-            rel_likes: relLikes2
-          }
-        ]
-      });
-    }
-
-    // === Single stock ===
-    const stockSymbol = stock.toUpperCase();
-    const result = await processStock(stockSymbol, ip, like);
-
-    return res.json({
-      stockData: {
-        stock: result.stock,
-        price: result.price,
-        likes: result.likes
-      }
-    });
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: err.message || 'Server error' });
-  }
-}
-
-module.exports = getStockData;
+module.exports = { fetchStockInfo, processStock };

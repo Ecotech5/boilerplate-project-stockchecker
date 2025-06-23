@@ -14,13 +14,16 @@ const app = express();
 // ✅ Security and CSP headers
 app.use(helmet({
   contentSecurityPolicy: {
-    useDefaults: true,
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'"],
-    }
-  }
+      imgSrc: ["'self'"],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
 }));
 
 app.use(cors({ origin: '*' }));

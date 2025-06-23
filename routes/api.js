@@ -1,7 +1,10 @@
+'use strict';
+
 const express = require('express');
 const router = express.Router();
-const { getStockPrices } = require('../controllers/stockdata'); // ✅ Make sure the path and function name match
+const { getStockPrices } = require('../controllers/stockdata');
 
-router.get('/stock-prices', getStockPrices); // ✅ This will fail if getStockPrices is undefined
+// Delegate GET requests to the controller
+router.get('/stock-prices', getStockPrices);
 
 module.exports = router;

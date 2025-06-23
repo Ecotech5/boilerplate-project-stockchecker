@@ -19,10 +19,11 @@
     "node-fetch": "^2.7.0"
   },
   "devDependencies": {
-    "chai": "^4.3.7",
-    "chai-http": "^4.3.0",
+    "chai": "^4.5.0",
+    "chai-http": "^4.4.0",
     "cross-env": "^7.0.3",
-    "mocha": "^10.2.0"
+    "mocha": "^10.8.2",
+    "superagent": "^10.2.1"
   },
   "keywords": [
     "node",

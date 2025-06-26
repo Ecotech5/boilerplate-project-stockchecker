@@ -5,6 +5,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
 require('dotenv').config();
+await mongoose.connect(...); // Good
+
 
 const app = express();
 

@@ -4,41 +4,36 @@ const axios = require('axios');
 const Stock = require('../models/Stock');
 const crypto = require('crypto');
 
-// Axios instance for FCC stock proxy
+// Axios instance for FCC proxy
 const fccApi = axios.create({
   baseURL: 'https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/',
   timeout: 5000,
 });
 
 async function fetchStockData(stock) {
-  if (!stock) throw new Error('Invalid stock');
-
   try {
-    const response = await fccApi.get(`${stock}/quote`);
+    const res = await fccApi.get(`${stock}/quote`);
     return {
-      stock: response.data.symbol,
-      price: parseFloat(response.data.latestPrice),
+      stock: res.data.symbol,
+      price: parseFloat(res.data.latestPrice),
     };
   } catch (err) {
-    console.error('Error fetching stock:', stock, err.message);
-    return {
-      stock: stock.toUpperCase(),
-      price: parseFloat((Math.random() * 100 + 50).toFixed(2)), // fallback in test mode
-    };
+    console.error(`Error fetching stock data for ${stock}:`, err.message);
+    return { stock, price: null };
   }
 }
 
-async function handleLikes(stock, like, ip) {
+async function updateLikes(stock, like, ip) {
   const hashedIp = crypto.createHash('md5').update(ip).digest('hex');
-  const update = like === 'true' ? { $addToSet: { likes: hashedIp } } : {};
 
-  const doc = await Stock.findOneAndUpdate(
-    { stock: stock.toUpperCase() },
+  const update = like === 'true' ? { $addToSet: { likes: hashedIp } } : {};
+  const result = await Stock.findOneAndUpdate(
+    { stock },
     update,
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 
-  return doc.likes.length;
+  return result.likes.length;
 }
 
 router.get('/stock-prices', async (req, res) => {
@@ -46,42 +41,41 @@ router.get('/stock-prices', async (req, res) => {
     const { stock, like } = req.query;
     const ip = req.ip;
 
-    if (!stock) {
-      return res.status(400).json({ error: 'Missing stock query' });
+    if (!stock) return res.status(400).json({ error: 'Missing stock symbol' });
+
+    const stocks = Array.isArray(stock) ? stock : [stock];
+    const upper = stocks.map(s => s.toUpperCase());
+
+    const stockData = await Promise.all(upper.map(fetchStockData));
+    const likesData = await Promise.all(upper.map(s => updateLikes(s, like, ip)));
+
+    if (upper.length === 1) {
+      return res.json({
+        stockData: {
+          stock: stockData[0].stock,
+          price: stockData[0].price,
+          likes: likesData[0]
+        }
+      });
     }
 
-    const inputStocks = Array.isArray(stock) ? stock : [stock];
-    const upperStocks = inputStocks.map(s => s.toUpperCase());
-
-    const [stockDataArr, likesArr] = await Promise.all([
-      Promise.all(upperStocks.map(fetchStockData)),
-      Promise.all(upperStocks.map(s => handleLikes(s, like, ip))),
-    ]);
-
-    if (upperStocks.length === 1) {
-      const data = {
-        stock: stockDataArr[0].stock,
-        price: stockDataArr[0].price,
-        likes: likesArr[0],
-      };
-      return res.json({ stockData: data });
-    } else {
-      const data = [
+    return res.json({
+      stockData: [
         {
-          stock: stockDataArr[0].stock,
-          price: stockDataArr[0].price,
-          rel_likes: likesArr[0] - likesArr[1],
+          stock: stockData[0].stock,
+          price: stockData[0].price,
+          rel_likes: likesData[0] - likesData[1],
         },
         {
-          stock: stockDataArr[1].stock,
-          price: stockDataArr[1].price,
-          rel_likes: likesArr[1] - likesArr[0],
-        },
-      ];
-      return res.json({ stockData: data });
-    }
-  } catch (err) {
-    console.error('API error:', err.message);
+          stock: stockData[1].stock,
+          price: stockData[1].price,
+          rel_likes: likesData[1] - likesData[0],
+        }
+      ]
+    });
+
+  } catch (error) {
+    console.error('API error:', error.message);
     return res.status(500).json({ error: 'Server error' });
   }
 });

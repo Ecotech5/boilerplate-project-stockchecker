@@ -1,14 +1,14 @@
 'use strict';
 
 const express = require('express');
-const cors = require('cors');
 const mongoose = require('mongoose');
 const helmet = require('helmet');
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 
-// Helmet security policies
+// Helmet CSP config
 app.use(helmet({
   contentSecurityPolicy: {
     useDefaults: true,
@@ -23,18 +23,21 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-require('./routes/fcctesting')(app);
-app.use('/api', require('./routes/api'));
+// Testing routes
+require('./routes/fcctesting.js')(app);
+
+// Main API route
+app.use('/api', require('./routes/api.js'));
 
 // 404 handler
-app.use((req, res) => {
-  res.status(404).type('text').send('Not Found');
-});
+app.use((req, res) => res.status(404).type('text').send('Not Found'));
 
-// Connect to MongoDB and start server
 async function startServer() {
   try {
+    if (!process.env.MONGO_URI) {
+      throw new Error('Missing MONGO_URI in environment variables');
+    }
+
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true

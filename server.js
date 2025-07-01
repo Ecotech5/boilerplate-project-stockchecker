@@ -29,12 +29,16 @@ app.use(express.urlencoded({ extended: true }));
 // ✅ Connect to MongoDB (no deprecated options)
 async function connectToMongo() {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    const uri = process.env.MONGO_URI;
+    if (!uri) throw new Error('MONGO_URI is undefined!');
+
+    await mongoose.connect(uri);
     console.log('✅ MongoDB connected');
   } catch (err) {
     console.error('❌ MongoDB connection error:', err.message);
   }
 }
+
 connectToMongo();
 
 // ✅ Routes

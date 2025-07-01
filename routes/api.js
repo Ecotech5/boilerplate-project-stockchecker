@@ -4,12 +4,12 @@ const crypto = require('crypto');
 const Stock = require('../models/Stock');
 const router = express.Router();
 
-// IP anonymizer
+// Hash IP
 function hashIP(ip) {
   return crypto.createHash('sha256').update(ip).digest('hex');
 }
 
-// Get stock price from FCC proxy
+// Fetch stock price from FCC proxy
 async function fetchPrice(symbol) {
   const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`;
   const response = await fetch(url);
@@ -19,61 +19,77 @@ async function fetchPrice(symbol) {
   }
   return {
     stock: data.symbol,
-    price: data.latestPrice
+    price: parseFloat(data.latestPrice)
   };
 }
 
-// Like handler
-async function handleLike(symbol, ipHash, like) {
-  let stock = await Stock.findOne({ stock: symbol });
-  if (!stock) {
-    stock = new Stock({ stock: symbol, likes: [] });
+// Get likes and apply "like" if valid
+async function getOrUpdateStock(symbol, ipHash, like) {
+  let stockDoc = await Stock.findOne({ stock: symbol });
+
+  if (!stockDoc) {
+    stockDoc = new Stock({ stock: symbol, likes: [] });
   }
 
-  if (like && !stock.likes.includes(ipHash)) {
-    stock.likes.push(ipHash);
-    await stock.save();
+  if (like && !stockDoc.likes.includes(ipHash)) {
+    stockDoc.likes.push(ipHash);
   }
 
-  return stock.likes.length;
+  await stockDoc.save();
+  return stockDoc.likes.length;
 }
 
-// Main route
 router.get('/stock-prices', async (req, res) => {
   try {
     let { stock, like } = req.query;
-    const ipHash = hashIP(req.ip);
+    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
+    const ipHash = hashIP(ip);
     like = like === 'true' || like === true;
 
     if (!stock) return res.status(400).json({ error: 'Stock is required' });
 
+    // Dual stock query
     if (Array.isArray(stock)) {
       const [s1, s2] = stock.map(s => s.toUpperCase());
-      const [data1, data2] = await Promise.all([fetchPrice(s1), fetchPrice(s2)]);
+
+      const [info1, info2] = await Promise.all([
+        fetchPrice(s1),
+        fetchPrice(s2)
+      ]);
+
       const [likes1, likes2] = await Promise.all([
-        handleLike(s1, ipHash, like),
-        handleLike(s2, ipHash, like)
+        getOrUpdateStock(s1, ipHash, like),
+        getOrUpdateStock(s2, ipHash, like)
       ]);
 
       return res.json({
         stockData: [
-          { stock: data1.stock, price: data1.price, rel_likes: likes1 - likes2 },
-          { stock: data2.stock, price: data2.price, rel_likes: likes2 - likes1 }
+          {
+            stock: info1.stock,
+            price: info1.price,
+            rel_likes: likes1 - likes2
+          },
+          {
+            stock: info2.stock,
+            price: info2.price,
+            rel_likes: likes2 - likes1
+          }
         ]
       });
-    } else {
-      const symbol = stock.toUpperCase();
-      const data = await fetchPrice(symbol);
-      const likes = await handleLike(symbol, ipHash, like);
-
-      return res.json({
-        stockData: {
-          stock: data.stock,
-          price: data.price,
-          likes
-        }
-      });
     }
+
+    // Single stock query
+    const symbol = stock.toUpperCase();
+    const stockInfo = await fetchPrice(symbol);
+    const likes = await getOrUpdateStock(symbol, ipHash, like);
+
+    return res.json({
+      stockData: {
+        stock: stockInfo.stock,
+        price: stockInfo.price,
+        likes
+      }
+    });
   } catch (err) {
     console.error('❌ Error:', err.message);
     res.status(500).json({ error: 'Failed to retrieve stock data' });

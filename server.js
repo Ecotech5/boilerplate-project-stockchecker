@@ -1,19 +1,21 @@
 'use strict';
 
-const express = require('express');
-const helmet = require('helmet'); // 🔺 move this to the top
-const cors = require('cors');
-const mongoose = require('mongoose');
-const apiRoutes = require('./routes/api.js');
 require('dotenv').config();
+const express = require('express');
+const helmet = require('helmet');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const fccTestingRoutes = require('./routes/fcctesting.js');
+const apiRoutes = require('./routes/api.js');
+const runner = require('./test-runner');
 
 const app = express();
 
-// ✅ Apply Helmet CSP FIRST — before any middleware
+// ✅ Apply Helmet with correct CSP (must come before static/public routes)
 app.use(
   helmet({
     contentSecurityPolicy: {
-      useDefaults: true,
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
@@ -23,39 +25,53 @@ app.use(
   })
 );
 
-// ✅ Then CORS and body parsers
+// ✅ Serve static files (if needed)
+app.use('/public', express.static(process.cwd() + '/public'));
+
+// ✅ CORS (for FCC testing only)
 app.use(cors({ origin: '*' }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// ✅ Body parsing
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 // ✅ Connect to MongoDB
-async function connectToMongo() {
-  try {
-    const uri = process.env.MONGO_URI;
-    if (!uri) throw new Error('MONGO_URI is undefined!');
-    await mongoose.connect(uri);
-    console.log('✅ MongoDB connected');
-  } catch (err) {
-    console.error('❌ MongoDB connection error:', err.message);
-  }
-}
-connectToMongo();
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch((err) => console.error('❌ MongoDB error:', err));
 
-// ✅ Routes
-app.use('/api', apiRoutes);
-
-// ✅ Home Route
-app.get('/', (req, res) => {
-  res.send('Stock Price Checker is running...');
+// ✅ Root page
+app.route('/').get((req, res) => {
+  res.sendFile(process.cwd() + '/views/index.html');
 });
 
-// ✅ Export app for testing
-module.exports = app;
+// ✅ FCC test routes
+fccTestingRoutes(app);
 
-// ✅ Start server if not in test mode
-if (process.env.NODE_ENV !== 'test') {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    console.log(`🚀 Server listening on port ${PORT}`);
-  });
-}
+// ✅ API routes
+app.use('/api', apiRoutes);
+
+// ✅ 404 handler
+app.use((req, res) => {
+  res.status(404).type('text').send('Not Found');
+});
+
+// ✅ Server and test runner
+const listener = app.listen(process.env.PORT || 3000, () => {
+  console.log('🚀 Server listening on port ' + listener.address().port);
+
+  if (process.env.NODE_ENV === 'test') {
+    console.log('🧪 Running Tests...');
+    setTimeout(() => {
+      try {
+        runner.run();
+      } catch (e) {
+        console.log('❌ Tests are not valid:');
+        console.error(e);
+      }
+    }, 3500);
+  }
+});
+
+module.exports = app;

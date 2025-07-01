@@ -10,9 +10,11 @@ require('dotenv').config();
 const app = express();
 
 // ✅ Helmet with strict CSP (only allow scripts and CSS from this server)
+
 app.use(
   helmet({
     contentSecurityPolicy: {
+      useDefaults: true,
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],

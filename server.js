@@ -9,8 +9,7 @@ require('dotenv').config();
 
 const app = express();
 
-// ✅ Helmet with strict CSP (only allow scripts and CSS from this server)
-
+// ✅ Strict Helmet CSP for FCC test 2
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -34,7 +33,6 @@ async function connectToMongo() {
   try {
     const uri = process.env.MONGO_URI;
     if (!uri) throw new Error('MONGO_URI is undefined!');
-
     await mongoose.connect(uri);
     console.log('✅ MongoDB connected');
   } catch (err) {
@@ -44,7 +42,7 @@ async function connectToMongo() {
 
 connectToMongo();
 
-// ✅ Routes
+// ✅ API Routes
 app.use('/api', apiRoutes);
 
 // ✅ Home Route
@@ -55,7 +53,7 @@ app.get('/', (req, res) => {
 // ✅ Export app for testing
 module.exports = app;
 
-// ✅ Start server if not in test mode
+// ✅ Start server (unless testing)
 if (process.env.NODE_ENV !== 'test') {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {

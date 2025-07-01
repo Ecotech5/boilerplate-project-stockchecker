@@ -1,4 +1,5 @@
 'use strict';
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -8,16 +9,16 @@ require('dotenv').config();
 
 const app = express();
 
-// ✅ Helmet CSP for FreeCodeCamp requirement
+// ✅ Helmet with strict CSP (only allow scripts and CSS from this server)
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", 'https:'],
         scriptSrc: ["'self'"],
-      },
-    },
+        styleSrc: ["'self'"]
+      }
+    }
   })
 );
 
@@ -26,7 +27,7 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Connect to MongoDB (no deprecated options)
+// ✅ MongoDB Connection
 async function connectToMongo() {
   try {
     const uri = process.env.MONGO_URI;
@@ -52,7 +53,7 @@ app.get('/', (req, res) => {
 // ✅ Export app for testing
 module.exports = app;
 
-// ✅ Only start server if NOT in test mode
+// ✅ Start server if not in test mode
 if (process.env.NODE_ENV !== 'test') {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {

@@ -1,15 +1,15 @@
 'use strict';
 
 const express = require('express');
+const helmet = require('helmet'); // 🔺 move this to the top
 const cors = require('cors');
-const helmet = require('helmet');
 const mongoose = require('mongoose');
 const apiRoutes = require('./routes/api.js');
 require('dotenv').config();
 
 const app = express();
 
-// ✅ Strict Helmet CSP for FCC test 2
+// ✅ Apply Helmet CSP FIRST — before any middleware
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -23,12 +23,12 @@ app.use(
   })
 );
 
-// ✅ Middleware
+// ✅ Then CORS and body parsers
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ MongoDB Connection
+// ✅ Connect to MongoDB
 async function connectToMongo() {
   try {
     const uri = process.env.MONGO_URI;
@@ -39,10 +39,9 @@ async function connectToMongo() {
     console.error('❌ MongoDB connection error:', err.message);
   }
 }
-
 connectToMongo();
 
-// ✅ API Routes
+// ✅ Routes
 app.use('/api', apiRoutes);
 
 // ✅ Home Route
@@ -53,7 +52,7 @@ app.get('/', (req, res) => {
 // ✅ Export app for testing
 module.exports = app;
 
-// ✅ Start server (unless testing)
+// ✅ Start server if not in test mode
 if (process.env.NODE_ENV !== 'test') {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {

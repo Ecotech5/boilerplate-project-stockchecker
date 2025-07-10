@@ -58,7 +58,7 @@ app.use((req, res) => {
 });
 
 // ✅ Server and test runner
-const listener = app.listen(process.env.PORT || 3000, () => {
+const listener = app.listen(process.env.PORT || 10000, () => {
   console.log('🚀 Server listening on port ' + listener.address().port);
 
   if (process.env.NODE_ENV === 'test') {

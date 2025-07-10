@@ -11,20 +11,22 @@ const { assert } = chai;
 describe('Functional Tests', function () {
   this.timeout(15000); // increase timeout to handle any DB delay
 
+  // ✅ More reliable connection logic
   before(async function () {
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(process.env.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
+    this.timeout(10000);
+    try {
+      if (mongoose.connection.readyState === 0) {
+        await mongoose.connect(process.env.MONGO_URI, {
+          useNewUrlParser: true,
+          useUnifiedTopology: true,
+        });
+      }
+      await mongoose.connection.asPromise();
+      console.log('✅ MongoDB connected (before tests)');
+    } catch (err) {
+      console.error('❌ MongoDB connection error:', err);
+      throw err;
     }
-
-    // Wait until connection is ready
-    while (mongoose.connection.readyState !== 1) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
-    console.log('✅ MongoDB connected (before tests)');
   });
 
   beforeEach(async function () {
@@ -38,10 +40,14 @@ describe('Functional Tests', function () {
   });
 
   it('1) Viewing one stock: GET request to /api/stock-prices/', function (done) {
+    console.log('📡 Test 1 started');
     chai.request(server)
       .get('/api/stock-prices')
       .query({ stock: 'GOOG' })
       .end((err, res) => {
+        console.log('📨 Response received:', err?.message || res?.status);
+        if (err) return done(err);
+
         assert.equal(res.status, 200);
         assert.property(res.body, 'stockData');
         assert.equal(res.body.stockData.stock, 'GOOG');
@@ -56,6 +62,8 @@ describe('Functional Tests', function () {
       .get('/api/stock-prices')
       .query({ stock: 'GOOG', like: true })
       .end((err, res) => {
+        if (err) return done(err);
+
         assert.equal(res.status, 200);
         assert.property(res.body, 'stockData');
         assert.equal(res.body.stockData.stock, 'GOOG');
@@ -70,6 +78,8 @@ describe('Functional Tests', function () {
       .get('/api/stock-prices')
       .query({ stock: 'GOOG', like: true })
       .end((err, res) => {
+        if (err) return done(err);
+
         assert.equal(res.status, 200);
         assert.property(res.body, 'stockData');
         assert.equal(res.body.stockData.stock, 'GOOG');
@@ -84,6 +94,8 @@ describe('Functional Tests', function () {
       .get('/api/stock-prices')
       .query({ stock: ['GOOG', 'MSFT'] })
       .end((err, res) => {
+        if (err) return done(err);
+
         assert.equal(res.status, 200);
         assert.property(res.body, 'stockData');
         assert.isArray(res.body.stockData);
@@ -99,6 +111,8 @@ describe('Functional Tests', function () {
       .get('/api/stock-prices')
       .query({ stock: ['GOOG', 'MSFT'], like: true })
       .end((err, res) => {
+        if (err) return done(err);
+
         assert.equal(res.status, 200);
         assert.property(res.body, 'stockData');
         assert.isArray(res.body.stockData);
@@ -109,4 +123,3 @@ describe('Functional Tests', function () {
       });
   });
 });
-//testing

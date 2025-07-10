@@ -1,13 +1,16 @@
 const fetch = require('node-fetch');
 const Stock = require('../models/Stock');
 
-// Helper to sanitize input symbol
 function cleanSymbol(symbol) {
   if (!symbol || typeof symbol !== 'string') return null;
   return symbol.trim().toUpperCase();
 }
 
-// Fetch price from FCC proxy
+// Anonymize IP for privacy
+function anonymizeIp(ip) {
+  return ip.split('.').slice(0, 3).join('.') + '.0';
+}
+
 async function fetchStockInfo(rawSymbol) {
   const symbol = cleanSymbol(rawSymbol);
   if (!symbol) throw new Error('Invalid stock symbol');
@@ -25,21 +28,19 @@ async function fetchStockInfo(rawSymbol) {
   };
 }
 
-// Handle DB logic and likes
 async function processStock(rawSymbol, ip, like) {
   const symbol = cleanSymbol(rawSymbol);
   if (!symbol) throw new Error('Invalid stock symbol');
 
+  const maskedIp = anonymizeIp(ip);
   let dbStock = await Stock.findOne({ symbol });
 
-  // Create new entry if not found
   if (!dbStock) {
     dbStock = new Stock({ symbol, likes: [] });
   }
 
-  // Like logic
-  if (like === 'true' && !dbStock.likes.includes(ip)) {
-    dbStock.likes.push(ip);
+  if (like === 'true' && !dbStock.likes.includes(maskedIp)) {
+    dbStock.likes.push(maskedIp);
   }
 
   await dbStock.save();

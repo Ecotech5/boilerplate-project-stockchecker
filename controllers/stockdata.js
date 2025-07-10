@@ -1,7 +1,11 @@
 // routes/stockdata.js or controllers/stockController.js
 const fetch = require('node-fetch');
 const Stock = require('../models/Stock');
-const crypto = require('crypto');
+
+// Anonymize IP for privacy compliance (e.g., 192.168.1.123 → 192.168.1.0)
+function anonymizeIp(ip) {
+  return ip.split('.').slice(0, 3).join('.') + '.0';
+}
 
 // Sanitize stock input
 function cleanStockName(stock) {
@@ -32,15 +36,15 @@ async function processStock(rawStock, ip, like) {
   const stock = cleanStockName(rawStock);
   if (!stock) throw new Error('Invalid stock');
 
-  const hashedIp = crypto.createHash('md5').update(ip).digest('hex');
+  const maskedIp = anonymizeIp(ip); // ✅ Replace MD5 with anonymized IP
   let dbStock = await Stock.findOne({ stock });
 
   if (!dbStock) {
-    dbStock = new Stock({ stock });
+    dbStock = new Stock({ stock, likes: [] });
   }
 
-  if (like === 'true' && !dbStock.likes.includes(hashedIp)) {
-    dbStock.likes.push(hashedIp);
+  if (like === 'true' && !dbStock.likes.includes(maskedIp)) {
+    dbStock.likes.push(maskedIp);
   }
 
   await dbStock.save();
